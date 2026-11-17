@@ -22,3 +22,7 @@ def health_db(db: Session = Depends(get_db)):
         "users": db.query(User).count(),
         "trips": db.query(Trip).count(),
     }
+
+@app.get("/")
+def hello():
+    return {"message": "Hello from FareShare"}
