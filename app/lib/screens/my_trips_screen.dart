@@ -85,7 +85,23 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
                       },
                       child: const Text('Edit'),
                     ),
-                  if ((t['pending_requests'] as int) > 0)
+                  if (t['status'] == 'open' && (t['accepted_riders'] as int) > 0)
+                    FilledButton(
+                      onPressed: () async {
+                        final changed = await context.push<bool>('/confirm-trip/${t['trip_id']}');
+                        if (changed == true) _load();
+                      },
+                      child: const Text('Confirm pickup'),
+                    ),
+                  if (t['status'] == 'confirmed')
+                    FilledButton(
+                      onPressed: () async {
+                        final changed = await context.push<bool>('/complete-trip/${t['trip_id']}');
+                        if (changed == true) _load();
+                      },
+                      child: const Text('Mark completed'),
+                    ),
+                  if ((t['pending_requests'] as int) > 0 && t['status'] == 'open')
                     FilledButton(onPressed: () => context.go('/requests'), child: const Text('View requests')),
                 ],
               ),
