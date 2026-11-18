@@ -267,3 +267,78 @@ def test_my_trips_lists_managing_and_joined(client):
     assert len(mm["managing"]) == 1 and mm["managing"][0]["pending_requests"] == 1
     rr = client.get("/trips/mine", headers=r).json()
     assert len(rr["joined"]) == 1 and rr["joined"][0]["my_request"]["status"] == "pending"
+
+
+# ---------- Sprint 1 part 2: time filter, confirm pickup, mark complete ----------
+def accepted_rider(client, m, tid, email="r@khi.iba.edu.pk", phone="0300 9999999"):
+    r = register(client, "Rider", email, "female", phone)
+    rid = client.post(f"/trips/{tid}/requests", json={}, headers=r).json()["request_id"]
+    assert client.post(f"/requests/{rid}/accept", headers=m).status_code == 200
+    return r, rid
+
+
+def test_browse_filters_by_time_window(client):
+    m = register(client, "Manager", "m@khi.iba.edu.pk")
+    v = add_car(client, m)
+    post_trip(client, m, v, hours=24)
+    other = register(client, "Other", "o@khi.iba.edu.pk")
+    lo = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=20)).isoformat()
+    hi = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=28)).isoformat()
+    assert len(client.get("/trips", params={"after": lo, "before": hi}, headers=other).json()) == 1
+    assert client.get("/trips", params={"after": hi}, headers=other).json() == []
+
+
+def test_confirm_pickup_flow(client):
+    m, tid = setup_trip(client, seats=3)
+    r, _ = accepted_rider(client, m, tid)
+    late = register(client, "Late", "l@khi.iba.edu.pk", "female", "0322 1234567")
+    late_req = client.post(f"/trips/{tid}/requests", json={}, headers=late)
+    assert late_req.status_code == 201
+    assert client.get(f"/trips/{tid}/riders", headers=r).status_code == 403
+    riders = client.get(f"/trips/{tid}/riders", headers=m).json()
+    assert len(riders) == 1 and riders[0]["rider"]["phone"] == "0300 9999999"
+    assert client.post(f"/trips/{tid}/confirm", json={"pickup_point": "  "}, headers=m).status_code == 422
+    assert client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=r).status_code == 403
+    ok = client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=m)
+    assert ok.status_code == 200 and ok.json()["status"] == "confirmed" and ok.json()["pickup_point"] == "Gate 2"
+    assert client.get("/requests/sent", headers=late).json()[0]["status"] == "declined"
+    assert client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=m).status_code == 409
+
+
+def test_confirm_needs_an_accepted_rider(client):
+    m, tid = setup_trip(client)
+    assert client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=m).status_code == 409
+
+
+def test_complete_and_rider_confirmation(client):
+    m, tid = setup_trip(client)
+    r, rid = accepted_rider(client, m, tid)
+    assert client.post(f"/trips/{tid}/complete", json={"rider_ids": []}, headers=m).status_code == 409  # not confirmed yet
+    client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=m)
+    me_r = client.get("/me", headers=r).json()["user_id"]
+    assert client.post(f"/trips/{tid}/complete", json={"rider_ids": [9999]}, headers=m).status_code == 422
+    assert client.post(f"/trips/{tid}/complete", json={"rider_ids": [me_r]}, headers=r).status_code == 403
+    done = client.post(f"/trips/{tid}/complete", json={"rider_ids": [me_r]}, headers=m)
+    assert done.status_code == 200 and done.json()["status"] == "completed"
+    assert client.get("/me", headers=m).json()["completed_trips_count"] == 1
+    assert client.get("/me", headers=r).json()["completed_trips_count"] == 0   # not until the rider confirms
+    sent = client.get("/requests/sent", headers=r).json()[0]
+    assert sent["needs_confirmation"] is True
+    assert client.post(f"/requests/{rid}/confirm-travel", json={"travelled": True}, headers=m).status_code == 403
+    assert client.post(f"/requests/{rid}/confirm-travel", json={"travelled": True}, headers=r).status_code == 200
+    assert client.get("/me", headers=r).json()["completed_trips_count"] == 1
+    assert client.post(f"/requests/{rid}/confirm-travel", json={"travelled": True}, headers=r).status_code == 409
+    assert client.get("/requests/sent", headers=r).json()[0]["needs_confirmation"] is False
+
+
+def test_rider_says_did_not_travel_and_unticked_rider(client):
+    m, tid = setup_trip(client)
+    r, rid = accepted_rider(client, m, tid)
+    r2, rid2 = accepted_rider(client, m, tid, "r2@khi.iba.edu.pk", "0333 1112223")
+    client.post(f"/trips/{tid}/confirm", json={"pickup_point": "Gate 2"}, headers=m)
+    me_r = client.get("/me", headers=r).json()["user_id"]
+    client.post(f"/trips/{tid}/complete", json={"rider_ids": [me_r]}, headers=m)
+    assert client.get("/requests/sent", headers=r2).json()[0]["needs_confirmation"] is False   # manager did not tick
+    assert client.post(f"/requests/{rid2}/confirm-travel", json={"travelled": True}, headers=r2).status_code == 409
+    assert client.post(f"/requests/{rid}/confirm-travel", json={"travelled": False}, headers=r).status_code == 200
+    assert client.get("/me", headers=r).json()["completed_trips_count"] == 0
