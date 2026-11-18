@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'app_state.dart';
 import 'screens/change_password_screen.dart';
+import 'screens/complete_trip_screen.dart';
+import 'screens/confirm_pickup_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -39,6 +41,14 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/post-trip',
         builder: (c, s) => PostTripScreen(trip: s.extra as Map<String, dynamic>?),
+      ),
+      GoRoute(
+        path: '/confirm-trip/:id',
+        builder: (c, s) => ConfirmPickupScreen(tripId: int.parse(s.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/complete-trip/:id',
+        builder: (c, s) => CompleteTripScreen(tripId: int.parse(s.pathParameters['id']!)),
       ),
       GoRoute(path: '/vehicles', builder: (c, s) => const VehiclesScreen()),
       GoRoute(

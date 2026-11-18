@@ -77,6 +77,17 @@ class _SentTabState extends State<_SentTab> {
     _load();
   }
 
+  Future<void> _travel(Map<String, dynamic> r, bool travelled) async {
+    try {
+      await api.post('/requests/${r['request_id']}/confirm-travel', {'travelled': travelled});
+      await auth.refreshUser();
+      if (mounted) snack(context, travelled ? 'Thanks, trip counted' : 'Thanks, noted');
+    } on ApiException catch (e) {
+      if (mounted) snack(context, e.message);
+    }
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -129,10 +140,34 @@ class _SentTabState extends State<_SentTab> {
                   child: const Text('Cancel request'),
                 ),
               ],
-              if (status == 'accepted') ...[
+              if (status == 'accepted' && r['needs_confirmation'] == true) ...[
                 const SizedBox(height: 6),
+                const Text('The manager marked this trip as completed. Did you travel?'),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _travel(r, false),
+                      child: const Text('No'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => _travel(r, true),
+                      child: const Text('Yes, I travelled'),
+                    ),
+                  ),
+                ]),
+              ] else if (status == 'accepted' && trip['status'] == 'completed') ...[
+                const SizedBox(height: 6),
+                const Text('Trip completed.'),
+              ] else if (status == 'accepted') ...[
+                const SizedBox(height: 6),
+                if (trip['pickup_point'] != null) Text('Pickup point: ${trip['pickup_point']}'),
                 Text('Manager phone: ${r['manager_phone'] ?? 'not shared'}'),
                 const SizedBox(height: 6),
+                if (trip['status'] != 'confirmed')
                 OutlinedButton(
                   onPressed: () => _act(
                     '/requests/${r['request_id']}/leave',

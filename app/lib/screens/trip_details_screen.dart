@@ -178,6 +178,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           child: Column(children: [
             _row('Departure', formatTime(t['departure_time'] as String)),
             _row('Seats left', '${t['available_seats']}'),
+            if (t['pickup_point'] != null) _row('Pickup point', '${t['pickup_point']}'),
             _row('Cost per person', 'Rs ${(t['cost_per_person'] as num).toStringAsFixed(0)}'),
             _row('Vehicle',
                 vehicle == null ? 'InDrive group (booked together)' : '${vehicle['make']} ${vehicle['model']}, ${vehicle['color']}'),
