@@ -1,11 +1,27 @@
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Trip, User
+from app.routers import auth, requests, trips, vehicles
 
 app = FastAPI(title="FareShare API")
+
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
+
+app.include_router(auth.router)
+app.include_router(vehicles.router)
+app.include_router(trips.router)
+app.include_router(requests.router)
+
+
+@app.get("/")
+def hello():
+    return {"message": "Hello from FareShare"}
 
 
 @app.get("/health")
@@ -22,7 +38,3 @@ def health_db(db: Session = Depends(get_db)):
         "users": db.query(User).count(),
         "trips": db.query(Trip).count(),
     }
-
-@app.get("/")
-def hello():
-    return {"message": "Hello from FareShare"}

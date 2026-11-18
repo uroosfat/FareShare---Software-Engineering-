@@ -62,5 +62,6 @@ class TripRequest(Base):
     message = Column(String(300))
     requested_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     responded_at = Column(TIMESTAMP(timezone=True))
+    expires_at = Column(TIMESTAMP(timezone=True))  # added in Sprint 1 (see db/migration_sprint1.sql)
 
     trip = relationship("Trip", back_populates="requests")
