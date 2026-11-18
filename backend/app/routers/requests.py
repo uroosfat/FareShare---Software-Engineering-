@@ -25,6 +25,10 @@ class RequestIn(BaseModel):
     message: str | None = None
 
 
+class TravelIn(BaseModel):
+    travelled: bool
+
+
 def get_request(db: Session, request_id: int) -> TripRequest:
     expire_stale_requests(db)
     r = db.get(TripRequest, request_id)
@@ -87,6 +91,9 @@ def sent_requests(user: User = Depends(get_current_user), db: Session = Depends(
         d["trip"] = trip_dict(t, user, db)
         # the manager's phone is shared only after acceptance
         d["manager_phone"] = t.manager.phone if r.status == "accepted" else None
+        d["needs_confirmation"] = (
+            r.status == "accepted" and t.status == "completed" and bool(r.manager_marked) and r.rider_confirmed is None
+        )
         out.append(d)
     return out
 
@@ -174,5 +181,25 @@ def leave_trip(request_id: int, user: User = Depends(get_current_user), db: Sess
     r.status, r.responded_at = "cancelled", utcnow()
     if t.status in ("open", "confirmed"):
         t.available_seats += 1
+    db.commit()
+    return request_dict(r)
+
+
+@router.post("/requests/{request_id}/confirm-travel")
+def confirm_travel(
+    request_id: int, body: TravelIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """The rider answers 'did you travel?' after the manager marked the trip completed."""
+    r = get_request(db, request_id)
+    if r.requester_id != user.user_id:
+        raise HTTPException(403, "This is not your request")
+    t = db.get(Trip, r.trip_id)
+    if r.status != "accepted" or t.status != "completed" or not r.manager_marked:
+        raise HTTPException(409, "There is nothing to confirm for this trip")
+    if r.rider_confirmed is not None:
+        raise HTTPException(409, "You have already answered")
+    r.rider_confirmed = body.travelled
+    if body.travelled:
+        user.completed_trips_count += 1
     db.commit()
     return request_dict(r)

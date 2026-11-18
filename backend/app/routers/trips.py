@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.helpers import (
     CAMPUSES,
+    user_private,
     GENDER_FILTERS,
     active_request_for,
     aware,
@@ -19,6 +20,14 @@ from app.models import Trip, TripRequest, User, Vehicle
 from app.security import get_current_user
 
 router = APIRouter(prefix="/trips", tags=["trips"])
+
+
+class ConfirmIn(BaseModel):
+    pickup_point: str
+
+
+class CompleteIn(BaseModel):
+    rider_ids: list[int]   # user ids of the riders who travelled
 
 
 class TripIn(BaseModel):
@@ -98,6 +107,8 @@ def browse_trips(
     campus: str | None = Query(None, description="IBA City Campus or IBA Main Campus"),
     date: dt.date | None = Query(None, description="YYYY-MM-DD"),
     gender: str | None = Query(None, description="any | female | male (trip restriction)"),
+    after: dt.datetime | None = Query(None, description="only trips departing at or after this time"),
+    before: dt.datetime | None = Query(None, description="only trips departing before this time"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -116,6 +127,10 @@ def browse_trips(
     if date:
         start = dt.datetime.combine(date, dt.time.min, tzinfo=dt.timezone.utc)
         q = q.filter(Trip.departure_time >= start, Trip.departure_time < start + dt.timedelta(days=1))
+    if after:
+        q = q.filter(Trip.departure_time >= after)
+    if before:
+        q = q.filter(Trip.departure_time < before)
     if gender in GENDER_FILTERS:
         q = q.filter(Trip.gender_filter == gender)
     trips = [t for t in q.order_by(Trip.departure_time).all() if gender_allowed(t, user)]
@@ -195,3 +210,66 @@ def cancel_trip(trip_id: int, user: User = Depends(get_current_user), db: Sessio
     ).update({"status": "cancelled"}, synchronize_session=False)
     db.commit()
     return {"detail": "Trip cancelled"}
+
+
+def manager_trip(db: Session, trip_id: int, user: User) -> Trip:
+    t = get_trip(db, trip_id)
+    if t.manager_id != user.user_id:
+        raise HTTPException(403, "Only the trip manager can do this")
+    return t
+
+
+@router.get("/{trip_id}/riders")
+def trip_riders(trip_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Accepted riders of my trip (the manager sees their phone numbers)."""
+    expire_stale_requests(db)
+    t = manager_trip(db, trip_id, user)
+    rows = db.query(TripRequest).filter(TripRequest.trip_id == t.trip_id, TripRequest.status == "accepted").all()
+    out = []
+    for r in rows:
+        rider = db.get(User, r.requester_id)
+        out.append({"request_id": r.request_id, "rider": user_private(rider),
+                    "manager_marked": bool(r.manager_marked), "rider_confirmed": r.rider_confirmed})
+    return out
+
+
+@router.post("/{trip_id}/confirm")
+def confirm_pickup(trip_id: int, body: ConfirmIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Manager confirms the pickup point. The trip becomes 'confirmed' and stops taking requests."""
+    expire_stale_requests(db)
+    t = manager_trip(db, trip_id, user)
+    if t.status != "open":
+        raise HTTPException(409, f"A {t.status} trip cannot be confirmed")
+    if not body.pickup_point.strip():
+        raise HTTPException(422, "Enter the pickup point")
+    if accepted_count(db, t.trip_id) < 1:
+        raise HTTPException(409, "Accept at least one rider before confirming the pickup")
+    t.pickup_point = body.pickup_point.strip()
+    t.status = "confirmed"
+    # requests still waiting are closed
+    db.query(TripRequest).filter(TripRequest.trip_id == t.trip_id, TripRequest.status == "pending").update(
+        {"status": "declined", "responded_at": utcnow()}, synchronize_session=False
+    )
+    db.commit()
+    db.refresh(t)
+    return trip_dict(t, user, db)
+
+
+@router.post("/{trip_id}/complete")
+def complete_trip(trip_id: int, body: CompleteIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Manager marks the trip completed and ticks who travelled. Each ticked rider is then asked to
+    confirm; the rider's trips-completed count only goes up when they confirm. The manager's goes up now."""
+    t = manager_trip(db, trip_id, user)
+    if t.status != "confirmed":
+        raise HTTPException(409, "Only a confirmed trip can be marked completed")
+    accepted = db.query(TripRequest).filter(TripRequest.trip_id == t.trip_id, TripRequest.status == "accepted").all()
+    allowed = {r.requester_id for r in accepted}
+    if not set(body.rider_ids) <= allowed:
+        raise HTTPException(422, "rider_ids must be accepted riders of this trip")
+    for r in accepted:
+        r.manager_marked = r.requester_id in body.rider_ids
+    t.status = "completed"
+    user.completed_trips_count += 1
+    db.commit()
+    db.refresh(t)
+    return trip_dict(t, user, db)

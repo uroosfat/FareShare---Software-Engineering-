@@ -98,6 +98,8 @@ def request_dict(r: TripRequest) -> dict:
         "requested_at": iso(r.requested_at),
         "responded_at": iso(r.responded_at),
         "expires_at": iso(r.expires_at),
+        "manager_marked": bool(r.manager_marked),
+        "rider_confirmed": r.rider_confirmed,
     }
 
 
@@ -118,6 +120,7 @@ def trip_dict(t: Trip, viewer: User, db: Session) -> dict:
         "gender_filter": t.gender_filter,
         "ride_type": "own_car" if t.vehicle_id else "indrive_group",
         "status": t.status,
+        "pickup_point": t.pickup_point,
         "manager": user_public(t.manager),
         "vehicle": vehicle_dict(veh) if veh else None,
         "my_request": request_dict(mine) if mine else None,
