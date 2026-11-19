@@ -1,6 +1,6 @@
 """SQLAlchemy models. They map the tables created by db/schema.sql
 (the SQL file is the source of truth, we do NOT call create_all)."""
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, TIMESTAMP, func
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Numeric, String, TIMESTAMP, false, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -64,7 +64,7 @@ class TripRequest(Base):
     requested_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     responded_at = Column(TIMESTAMP(timezone=True))
     expires_at = Column(TIMESTAMP(timezone=True))  # added in Sprint 1 (see db/migration_sprint1.sql)
-    manager_marked = Column(Boolean, nullable=False, server_default="false")  # manager ticked this rider as travelled
+    manager_marked = Column(Boolean, nullable=False, server_default=false())  # manager ticked this rider as travelled
     rider_confirmed = Column(Boolean)  # rider answered: True = travelled, False = did not, None = not asked yet
 
     trip = relationship("Trip", back_populates="requests")
