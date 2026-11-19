@@ -15,7 +15,7 @@ A carpooling app for IBA Karachi students (theme: Environment & Sustainability).
 | Trello board | https://trello.com/b/6v93vDaT/fareshare-fall26 |
 | Test Plan | Submitted on lms |
 | Test cases (197) | Submitted on lms |
-| Scrum logs (Planning, Daily Scrum, Review, Retrospective) | _(add links)_ |
+| Scrum logs (Planning, Daily Scrum, Review, Retrospective) | https://drive.google.com/drive/folders/1RHxM-jvH4LEDp6Kk4S7_qLlWGRyXZUIw |
 
 ## Tech stack
 
