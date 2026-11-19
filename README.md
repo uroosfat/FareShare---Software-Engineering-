@@ -13,7 +13,6 @@ A carpooling app for IBA Karachi students (theme: Environment & Sustainability).
 | Backend health check | https://fareshare-api.onrender.com/health/db |
 | Android app (APK) | GitHub **Releases** page of this repo, newest release, file `FareShare.apk` |
 | Trello board | https://trello.com/b/6v93vDaT/fareshare-fall26 |
-| Wireframes | _(add link)_ |
 | Test Plan | https://claude.ai/artifact/3pLV9bDhMybTuNweJMn2G4 |
 | Test cases (197) | https://claude.ai/artifact/AhnYStRvG2vXVfLZb5uQCi |
 | Scrum logs (Planning, Daily Scrum, Review, Retrospective) | _(add links)_ |
