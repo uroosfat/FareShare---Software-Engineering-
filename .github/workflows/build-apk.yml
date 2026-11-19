@@ -1,0 +1,60 @@
+name: Build Android APK
+
+# Builds the FareShare Flutter app from the code in this repo and publishes the
+# APK as a GitHub Release, so it can be downloaded straight onto a phone.
+# Runs by hand (Actions tab > Build Android APK > Run workflow) or on a push to
+# the feature/android-apk branch.
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/android-apk]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Allow the app to use the internet (release builds need this)
+        run: |
+          f=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "android.permission.INTERNET" "$f"; then
+            sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$f"
+          fi
+          grep -n "INTERNET" "$f"
+
+      - run: flutter --version
+      - run: flutter pub get
+      - run: flutter build apk --release
+
+      - name: Keep the APK as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fareshare-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publish the APK as a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp app/build/app/outputs/flutter-apk/app-release.apk FareShare.apk
+          gh release create "apk-${{ github.run_number }}" FareShare.apk \
+            --title "FareShare APK build ${{ github.run_number }}" \
+            --notes "Built from commit ${{ github.sha }}. Download FareShare.apk on an Android phone and install it."
