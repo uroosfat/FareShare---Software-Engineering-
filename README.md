@@ -5,7 +5,7 @@ A carpooling app for IBA Karachi students (theme: Environment & Sustainability).
 **Course:** Software Engineering (Scrum), Section 102112, IBA Karachi, Fall 2026
 **Team:** Uroos Fatima (31094), Muhammad Shayan Hussain (30077), Waniya Jabeen (31624)
 
-## Quick links
+## Quick links and Where to Finds
 
 | What | Where |
 |---|---|
@@ -13,8 +13,8 @@ A carpooling app for IBA Karachi students (theme: Environment & Sustainability).
 | Backend health check | https://fareshare-api.onrender.com/health/db |
 | Android app (APK) | GitHub **Releases** page of this repo, newest release, file `FareShare.apk` |
 | Trello board | https://trello.com/b/6v93vDaT/fareshare-fall26 |
-| Test Plan | https://claude.ai/artifact/3pLV9bDhMybTuNweJMn2G4 |
-| Test cases (197) | https://claude.ai/artifact/AhnYStRvG2vXVfLZb5uQCi |
+| Test Plan | Submitted on lms |
+| Test cases (197) | Submitted on lms |
 | Scrum logs (Planning, Daily Scrum, Review, Retrospective) | _(add links)_ |
 
 ## Tech stack
